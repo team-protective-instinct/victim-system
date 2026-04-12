@@ -1,0 +1,37 @@
+services:
+  # [App] DVWA 서버
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: dvwa-app
+    ports:
+      - "80:80"
+    volumes:
+      # 아파치 로그 디렉토리를 공유 볼륨으로 지정
+      - apache-logs:/var/log/apache2
+    networks:
+      - dvwa-net
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.12.0
+    container_name: filebeat-sidecar
+    user: root  # 로그 파일을 읽기 위해 루트 권한 필요
+    volumes:
+      # DVWA가 쓰는 볼륨을 똑같이 마운트 (읽기 전용 :ro)
+      - apache-logs:/var/log/apache2:ro
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    # DVWA가 먼저 뜬 다음에 실행되도록 설정
+    depends_on:
+      - dvwa
+    networks:
+      - dvwa-net
+      - elk
+
+volumes:
+  apache-logs:
+
+networks:
+  dvwa-net:
+    driver: bridge
+  elk:
+    external: true
+    name: elk-stack

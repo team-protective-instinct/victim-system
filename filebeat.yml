@@ -1,0 +1,18 @@
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    # docker-compose에서 마운트한 경로
+    - /var/log/apache2/*.log
+  fields:
+    service: dvwa-apache
+
+# 일단 로그가 잘 찍히는지 확인하기 위해 '콘솔'로 출력 설정
+# output.console:
+#   pretty: true
+
+output.logstash:
+  hosts: [ logstash:5044 ]
+
+# Filebeat의 내부 로그 수준 설정
+logging.level: info
