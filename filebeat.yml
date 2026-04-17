@@ -1,18 +1,27 @@
 filebeat.inputs:
-- type: log
-  enabled: true
-  paths:
-    # docker-compose에서 마운트한 경로
-    - /var/log/apache2/*.log
-  fields:
-    service: dvwa-apache
+  # WAF (ModSecurity) 감사 로그
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/modsec/audit.log
+    fields:
+      service: modsecurity-waf
+    multiline.pattern: '^--[a-fA-F0-9]{8}-[A-Z]--$'
+    multiline.negate: true
+    multiline.match: after
 
-# 일단 로그가 잘 찍히는지 확인하기 위해 '콘솔'로 출력 설정
-# output.console:
-#   pretty: true
+  # Metasploitable 2 시스템 로그
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/msf/syslog
+      - /var/log/msf/auth.log
+      - /var/log/msf/daemon.log
+    fields:
+      service: metasploitable2
 
 output.logstash:
-  hosts: [ logstash:5044 ]
+  hosts: [ "logstash:5044" ]
 
-# Filebeat의 내부 로그 수준 설정
+# Filebeat 내부 로그 수준 설정
 logging.level: info

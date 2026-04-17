@@ -1,36 +1,63 @@
 services:
-  # [App] DVWA 서버
-  dvwa:
-    image: vulnerables/web-dvwa
-    container_name: dvwa-app
+  waf:
+    image: owasp/modsecurity-crs:nginx
+    container_name: waf-proxy
     ports:
-      - "80:80"
+      - "80:8080"
+    environment:
+      - BACKEND=http://metasploitable:80
+      - PROXY_PRESERVE_HOST=on
+      - MODSEC_RULE_ENGINE=DetectionOnly
+      - MODSEC_AUDIT_ENGINE=On
+      - MODSEC_AUDIT_LOG=/var/log/modsecurity/audit.log
     volumes:
-      # 아파치 로그 디렉토리를 공유 볼륨으로 지정
-      - apache-logs:/var/log/apache2
+      - waf-logs:/var/log/modsecurity # 네임드 볼륨 사용
     networks:
-      - dvwa-net
+      - victim-net
+
+  metasploitable:
+    image: tleemcjr/metasploitable2:latest
+    container_name: victim-msf2
+    ports:
+      - "21:21"
+      - "22:22"
+      - "139:139"
+      - "445:445"
+      - "3632:3632"
+      - "6200:6200"
+      - "6667:6667"
+      - "8180:8180"
+    command: >
+      sh -c "/bin/services.sh && /etc/init.d/apache2 start && bash"
+    tty: true
+    stdin_open: true
+    volumes:
+      - msf-data-logs:/var/log # 네임드 볼륨 사용! (덮어씌우지 않음)
+    networks:
+      - victim-net
 
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.12.0
-    container_name: filebeat-sidecar
-    user: root  # 로그 파일을 읽기 위해 루트 권한 필요
+    container_name: filebeat-shipper
+    user: root
     volumes:
-      # DVWA가 쓰는 볼륨을 똑같이 마운트 (읽기 전용 :ro)
-      - apache-logs:/var/log/apache2:ro
       - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-    # DVWA가 먼저 뜬 다음에 실행되도록 설정
+      - waf-logs:/var/log/modsec:ro       # WAF 네임드 볼륨 연결
+      - msf-data-logs:/var/log/msf:ro     # MSF 네임드 볼륨 연결
     depends_on:
-      - dvwa
+      - waf
+      - metasploitable
     networks:
-      - dvwa-net
+      - victim-net
       - elk
 
+# 도커에게 "이 볼륨들은 네가 알아서 잘 보존해줘" 라고 선언
 volumes:
-  apache-logs:
+  waf-logs:
+  msf-data-logs:
 
 networks:
-  dvwa-net:
+  victim-net:
     driver: bridge
   elk:
     external: true
